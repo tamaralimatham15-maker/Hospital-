@@ -12,6 +12,30 @@ jobs:
         with:
           channel: stable
       - run: flutter create --platforms=android .
+      - name: Enable Android core library desugaring
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          candidates = [Path("android/app/build.gradle"), Path("android/app/build.gradle.kts")]
+          p = next((x for x in candidates if x.exists()), None)
+          if p is None:
+              raise SystemExit("Android app Gradle file was not generated")
+          s = p.read_text()
+          kotlin = p.name.endswith(".kts")
+          if "isCoreLibraryDesugaringEnabled" not in s and "coreLibraryDesugaringEnabled" not in s:
+              compile_block = ("    compileOptions {\\n        isCoreLibraryDesugaringEnabled = true\\n    }\\n" if kotlin else "    compileOptions {\\n        coreLibraryDesugaringEnabled true\\n    }\\n")
+              if "compileOptions {" in s:
+                  s = s.replace("compileOptions {", "compileOptions {\\n        " + ("isCoreLibraryDesugaringEnabled = true" if kotlin else "coreLibraryDesugaringEnabled true"), 1)
+              elif "android {" in s:
+                  s = s.replace("android {", "android {\\n" + compile_block, 1)
+              else:
+                  raise SystemExit("Could not find android block in Gradle file")
+          dep = ('dependencies {\\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\\n}\\n' if kotlin else 'dependencies {\\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"\\n}\\n')
+          if "desugar_jdk_libs" not in s:
+              s += "\\n" + dep
+          p.write_text(s)
+          print(f"Configured core library desugaring in {p}")
+          PY
       - name: Configure Android notification permissions
         run: |
           python3 - <<'PY'
