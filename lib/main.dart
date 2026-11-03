@@ -51,9 +51,25 @@ class _HomePageState extends State<HomePage> {
   final p=await SharedPreferences.getInstance();
   final savedDoses=p.getString('careflow_treatments');if(savedDoses!=null){final m=jsonDecode(savedDoses) as Map<String,dynamic>;m.forEach((k,v){treatmentsByPatient[k]=(v as List).cast<String>();});}
   final done=p.getStringList('careflow_completed_treatments');if(done!=null)completedTreatments.addAll(done);
+  final rawPatients=p.getStringList('enaya_patients');if(rawPatients!=null){patients..clear()..addAll(rawPatients);}
+  final rawWards=p.getStringList('enaya_wards');if(rawWards!=null){wards..clear()..addAll(rawWards);}
+  Map<String,dynamic> readSaved(String key){final value=p.getString(key);return value==null?{}:Map<String,dynamic>.from(jsonDecode(value));}
+  patientInfo.addAll(readSaved('enaya_patient_info').map((k,v)=>MapEntry(k,Map<String,String>.from(v))));
+  vitalSigns.addAll(readSaved('enaya_vitals').map((k,v)=>MapEntry(k,List<String>.from(v))));
+  nursingNotes.addAll(readSaved('enaya_notes').map((k,v)=>MapEntry(k,List<String>.from(v))));
+  investigations.addAll(readSaved('enaya_investigations').map((k,v)=>MapEntry(k,List<String>.from(v))));
   final raw=p.getString('careflow_patient_photos');
   if(raw!=null){final data=jsonDecode(raw) as Map<String,dynamic>;data.forEach((k,v){photosByPatient[k]=(v as List).map((e)=>Map<String,String>.from(e)).toList();});}
   if(mounted)setState(()=>initialized=true);
+ }
+ Future<void> saveAllData() async {
+  final p=await SharedPreferences.getInstance();
+  await p.setStringList('enaya_patients',patients);
+  await p.setStringList('enaya_wards',wards);
+  await p.setString('enaya_patient_info',jsonEncode(patientInfo));
+  await p.setString('enaya_vitals',jsonEncode(vitalSigns));
+  await p.setString('enaya_notes',jsonEncode(nursingNotes));
+  await p.setString('enaya_investigations',jsonEncode(investigations));
  }
  Future<void> savePatientPhotos() async {final p=await SharedPreferences.getInstance();await p.setString('careflow_patient_photos',jsonEncode(photosByPatient));}
  Future<void> saveTreatments() async {final p=await SharedPreferences.getInstance();await p.setString('careflow_treatments',jsonEncode(treatmentsByPatient));await p.setStringList('careflow_completed_treatments',completedTreatments.toList());}
@@ -169,6 +185,7 @@ class _HomePageState extends State<HomePage> {
       if(value.isNotEmpty)(data as List<String>).insert(0,value);
      }
      setState((){});
+     saveAllData();
      refresh((){});
      Navigator.pop(entryContext);
     },child:const Text('حفظ'))
@@ -237,7 +254,7 @@ class _HomePageState extends State<HomePage> {
   final controller=TextEditingController();
   showDialog(context:context,builder:(ctx)=>AlertDialog(title:Text('إضافة إلى $title'),content:TextField(controller:controller,autofocus:true,decoration:const InputDecoration(hintText:'اكتب الاسم أو التفاصيل')),actions:[
    TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),
-   FilledButton(onPressed:(){if(controller.text.trim().isNotEmpty)setState(()=>items.add(controller.text.trim()));Navigator.pop(ctx);},child:const Text('إضافة'))]));
+   FilledButton(onPressed:(){if(controller.text.trim().isNotEmpty){setState(()=>items.add(controller.text.trim()));saveAllData();}Navigator.pop(ctx);},child:const Text('إضافة'))]));
  }
  Widget settingsPage()=>ListView(padding:const EdgeInsets.all(16),children:[
   const Text('الإعدادات',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),const SizedBox(height:12),
