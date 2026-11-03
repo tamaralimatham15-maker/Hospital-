@@ -139,7 +139,42 @@ class _HomePageState extends State<HomePage> {
       investigations.putIfAbsent(patient,()=>[]),[],false),
      patientPhotoAlbum(ctx,refresh,patient),
     ]))),
-   actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]
+   actions:[TextButton(onPressed:()=>changePatientWard(patient,ctx),child:const Text('نقل إلى ردهة')),TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]
+  )));
+ }
+ void changePatientWard(String patient,BuildContext profileContext){
+  String selected=wards.firstWhere((w)=>patient.contains(w),orElse:()=>wards.isNotEmpty?wards.first:'');
+  showDialog(context:profileContext,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+   title:const Text('نقل المريض إلى ردهة أخرى'),
+   content:DropdownButtonFormField<String>(value:wards.contains(selected)?selected:null,items:wards.map((w)=>DropdownMenuItem(value:w,child:Text(w))).toList(),onChanged:(v)=>refresh(()=>selected=v??'')),
+   actions:[
+    TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),
+    FilledButton(onPressed:()async{
+     if(selected.isNotEmpty){
+      final name=patient.split(' — ').first;
+      final updated='$name — $selected';
+      if(updated!=patient){
+       final index=patients.indexOf(patient);if(index>=0)patients[index]=updated;
+       if(patientInfo.containsKey(patient))patientInfo[updated]=patientInfo.remove(patient)!;
+       if(vitalSigns.containsKey(patient))vitalSigns[updated]=vitalSigns.remove(patient)!;
+       if(nursingNotes.containsKey(patient))nursingNotes[updated]=nursingNotes.remove(patient)!;
+       if(investigations.containsKey(patient))investigations[updated]=investigations.remove(patient)!;
+       if(photosByPatient.containsKey(patient))photosByPatient[updated]=photosByPatient.remove(patient)!;
+       final doses=treatmentsByPatient.remove(patient)??<String>[];
+       treatmentsByPatient[updated]=doses;
+       for(final raw in doses){
+        final base=raw.hashCode.abs()%10000000;
+        for(var i=0;i<=31;i++){await notices.cancel(base+i);}
+        await scheduleTreatment(updated,raw);
+       }
+       await saveAllData();await savePatientPhotos();await saveTreatments();
+      }
+     }
+     if(ctx.mounted)Navigator.pop(ctx);
+     if(profileContext.mounted)Navigator.pop(profileContext);
+     if(mounted)setState((){});
+    },child:const Text('تأكيد النقل'))
+   ]
   )));
  }
  Widget profileSection(BuildContext dialogContext,StateSetter refresh,String patient,
