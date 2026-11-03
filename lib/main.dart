@@ -31,7 +31,7 @@ class _HomePageState extends State<HomePage> {
     NavigationDestination(icon:Icon(Icons.people_outline),label:'المرضى'),
     NavigationDestination(icon:Icon(Icons.apartment_outlined),label:'الردهات'),
     NavigationDestination(icon:Icon(Icons.medication_outlined),label:'العلاجات'),
-    NavigationDestination(icon:Icon(Icons.settings_outlined),label:'الإعدادات')]))));
+    NavigationDestination(icon:Icon(Icons.settings_outlined),label:'الإعدادات')])));
  }
  Widget dashboard()=>ListView(padding:const EdgeInsets.all(16),children:[
   Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(22),gradient:const LinearGradient(colors:[Color(0xff087e8b),Color(0xff155e75)])),child:const Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
