@@ -20,9 +20,13 @@ class _HomePageState extends State<HomePage> {
  int tab=0;
  final patients=<String>['أحمد علي — ردهة الرجال','محمد حسن — العناية المركزة','زهراء كريم — ردهة النساء'];
  final wards=<String>['ردهة الرجال','ردهة النساء','العناية المركزة','الأطفال'];
- final treatments=<String>['Paracetamol 1 g — IV — 08:00','Ceftriaxone 1 g — IV — 12:00','Normal Saline — IV — 18:00'];
+ final treatmentsByPatient=<String,List<String>>{
+  'أحمد علي — ردهة الرجال':['Paracetamol 1 g — IV — 08:00','Normal Saline — IV — 18:00'],
+  'محمد حسن — العناية المركزة':['Ceftriaxone 1 g — IV — 12:00'],
+  'زهراء كريم — ردهة النساء':[],
+ };
  @override Widget build(BuildContext context) {
-  final pages=[dashboard(),listPage('المرضى',patients,Icons.people_alt_outlined,'إضافة مريض'),listPage('الردهات والأقسام',wards,Icons.local_hospital_outlined,'إضافة ردهة'),listPage('جدول العلاجات',treatments,Icons.medication_outlined,'إضافة علاج'),settingsPage()];
+  final pages=[dashboard(),patientsPage(),listPage('الردهات والأقسام',wards,Icons.local_hospital_outlined,'إضافة ردهة'),settingsPage()];
   return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
    appBar:AppBar(title:const Row(children:[Icon(Icons.health_and_safety,color:Color(0xff087e8b)),SizedBox(width:9),Text('رِعاية',style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:8),Text('CareFlow',style:TextStyle(fontSize:13))]),actions:[IconButton(onPressed:widget.onTheme,icon:const Icon(Icons.brightness_6_outlined))]),
    body:SafeArea(child:pages[tab]),
@@ -30,7 +34,6 @@ class _HomePageState extends State<HomePage> {
     NavigationDestination(icon:Icon(Icons.dashboard_outlined),label:'الرئيسية'),
     NavigationDestination(icon:Icon(Icons.people_outline),label:'المرضى'),
     NavigationDestination(icon:Icon(Icons.apartment_outlined),label:'الردهات'),
-    NavigationDestination(icon:Icon(Icons.medication_outlined),label:'العلاجات'),
     NavigationDestination(icon:Icon(Icons.settings_outlined),label:'الإعدادات')])));
  }
  Widget dashboard()=>ListView(padding:const EdgeInsets.all(16),children:[
@@ -41,9 +44,47 @@ class _HomePageState extends State<HomePage> {
   const SizedBox(height:18),
   GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:2,crossAxisSpacing:12,mainAxisSpacing:12,childAspectRatio:1.45,children:[
    statCard('المرضى',patients.length.toString(),Icons.people_alt_outlined),statCard('الردهات',wards.length.toString(),Icons.apartment),
-   statCard('العلاجات المجدولة',treatments.length.toString(),Icons.medication_outlined),statCard('تنبيهات اليوم','2',Icons.notifications_active_outlined)]),
+   statCard('العلاجات المسجلة',treatmentsByPatient.values.fold<int>(0,(sum,list)=>sum+list.length).toString(),Icons.medication_outlined),statCard('تنبيهات اليوم','2',Icons.notifications_active_outlined)]),
   const SizedBox(height:18),const Text('آخر المرضى',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
   ...patients.map((p)=>Card(child:ListTile(leading:const CircleAvatar(child:Icon(Icons.person_outline)),title:Text(p),subtitle:const Text('ملف تجريبي'))))]);
+ Widget patientsPage()=>ListView(padding:const EdgeInsets.all(16),children:[
+  Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[
+   const Text('المرضى',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),
+   FilledButton.icon(onPressed:()=>addItem('المرضى',patients),icon:const Icon(Icons.add),label:const Text('إضافة مريض'))]),
+  const SizedBox(height:12),
+  ...patients.map((patient)=>Card(
+   child:ExpansionTile(
+    leading:const CircleAvatar(child:Icon(Icons.person_outline)),
+    title:Text(patient),
+    subtitle:Text('${(treatmentsByPatient[patient]??[]).length} علاج مسجل'),
+    children:[
+     if((treatmentsByPatient[patient]??[]).isEmpty)
+      const Padding(padding:EdgeInsets.all(12),child:Text('لا توجد علاجات مضافة لهذا المريض')),
+     ...(treatmentsByPatient[patient]??[]).map((t)=>ListTile(
+      leading:const Icon(Icons.medication_outlined,color:Color(0xff087e8b)),
+      title:Text(t),dense:true)),
+     Padding(padding:const EdgeInsets.fromLTRB(16,4,16,12),child:Align(
+      alignment:Alignment.centerRight,
+      child:OutlinedButton.icon(
+       onPressed:()=>addTreatment(patient),
+       icon:const Icon(Icons.add),label:const Text('إضافة علاج لهذا المريض'))))
+    ]))),
+ ]);
+ void addTreatment(String patient){
+  final controller=TextEditingController();
+  showDialog(context:context,builder:(ctx)=>AlertDialog(
+   title:Text('إضافة علاج — $patient'),
+   content:TextField(controller:controller,maxLines:3,autofocus:true,
+    decoration:const InputDecoration(hintText:'اسم العلاج، الجرعة، الطريق، الوقت',border:OutlineInputBorder())),
+   actions:[
+    TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),
+    FilledButton(onPressed:(){
+     final value=controller.text.trim();
+     if(value.isNotEmpty)setState(()=>treatmentsByPatient.putIfAbsent(patient,()=>[]).add(value));
+     Navigator.pop(ctx);
+    },child:const Text('حفظ العلاج'))
+   ]));
+ }
  Widget statCard(String title,String value,IconData icon)=>Card(elevation:0,color:Theme.of(context).colorScheme.surfaceContainerHighest,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Icon(icon,color:const Color(0xff087e8b)),Text(value,style:const TextStyle(fontSize:25,fontWeight:FontWeight.bold)),Text(title,style:const TextStyle(fontSize:13))])));
  Widget listPage(String title,List<String> items,IconData icon,String action)=>ListView(padding:const EdgeInsets.all(16),children:[
   Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Text(title,style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold)),FilledButton.icon(onPressed:()=>addItem(title,items),icon:const Icon(Icons.add),label:Text(action))]),
