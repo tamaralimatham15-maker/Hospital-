@@ -183,8 +183,8 @@ class _HomePageState extends State<HomePage> {
    Padding(padding:const EdgeInsets.all(8),child:GridView.builder(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:3,crossAxisSpacing:8,mainAxisSpacing:8),itemCount:list.length,itemBuilder:(c,i)=>GestureDetector(onTap:()=>viewPatientPhoto(ctx,refresh,patient,i),child:ClipRRect(borderRadius:BorderRadius.circular(8),child:Image.file(File(list[i]['path']!),fit:BoxFit.cover)))))
   ]));
  }
- Future<void> takePatientPhoto(BuildContext ctx,StateSetter refresh,String patient) async {final x=await picker.pickImage(source:ImageSource.camera,imageQuality:100);if(x!=null)await storePatientPhoto(refresh,patient,x);}
- Future<void> pickPatientPhotos(BuildContext ctx,StateSetter refresh,String patient) async {final xs=await picker.pickMultiImage(imageQuality:100);for(final x in xs){await storePatientPhoto(refresh,patient,x);}}
+ Future<void> takePatientPhoto(BuildContext ctx,StateSetter refresh,String patient) async {final x=await picker.pickImage(source:ImageSource.camera);if(x!=null)await storePatientPhoto(refresh,patient,x);}
+ Future<void> pickPatientPhotos(BuildContext ctx,StateSetter refresh,String patient) async {final xs=await picker.pickMultiImage();for(final x in xs){await storePatientPhoto(refresh,patient,x);}}
  Future<void> storePatientPhoto(StateSetter refresh,String patient,XFile x) async {
   final dir=await getApplicationDocumentsDirectory();final folder=Directory(dir.path+'/patient_lab_photos');if(!await folder.exists())await folder.create(recursive:true);
   final path=folder.path+'/'+DateTime.now().microsecondsSinceEpoch.toString()+'_'+x.name;await File(x.path).copy(path);
