@@ -12,6 +12,21 @@ jobs:
         with:
           channel: stable
       - run: flutter create --platforms=android .
+      - name: Configure Android notification permissions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          marker = '    <application'
+          permissions = '''    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+          '''
+          if "android.permission.POST_NOTIFICATIONS" not in s:
+              s = s.replace(marker, permissions + marker, 1)
+              p.write_text(s)
+          PY
       - run: flutter pub get
       - name: Analyze Flutter project (non-blocking)
         run: flutter analyze || true
