@@ -92,7 +92,7 @@ class _HomePageState extends State<HomePage> {
   const SizedBox(height:18),
   GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:2,crossAxisSpacing:12,mainAxisSpacing:12,childAspectRatio:1.45,children:[
    statCard('المرضى',patients.length.toString(),Icons.people_alt_outlined,onTap:()=>setState(()=>tab=1)),statCard('الردهات',wards.length.toString(),Icons.apartment,onTap:()=>setState(()=>tab=2)),
-   statCard('العلاجات المسجلة',treatmentsByPatient.values.fold<int>(0,(sum,list)=>sum+list.length).toString(),Icons.medication_outlined),statCard('تنبيهات اليوم','2',Icons.notifications_active_outlined)]),
+   statCard('العلاجات المسجلة',treatmentsByPatient.values.fold<int>(0,(sum,list)=>sum+list.length).toString(),Icons.medication_outlined,onTap:showTreatmentsOverview),statCard('التنبيهات',treatmentsByPatient.values.fold<int>(0,(sum,list)=>sum+list.length).toString(),Icons.notifications_active_outlined,onTap:showTreatmentsOverview)]),
   const SizedBox(height:18),const Text('آخر المرضى',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
   ...patients.map((p)=>Card(child:ListTile(onTap:()=>openPatientProfile(p),leading:const CircleAvatar(child:Icon(Icons.person_outline)),title:Text(p),subtitle:const Text('اضغط لفتح ملف المريض'),trailing:const Icon(Icons.chevron_left))))]);
  Widget patientsPage()=>ListView(padding:const EdgeInsets.all(16),children:[
@@ -249,7 +249,41 @@ class _HomePageState extends State<HomePage> {
  Widget statCard(String title,String value,IconData icon,{VoidCallback? onTap})=>Card(elevation:0,color:Theme.of(context).colorScheme.surfaceContainerHighest,child:InkWell(borderRadius:BorderRadius.circular(12),onTap:onTap,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Icon(icon,color:const Color(0xff087e8b)),Text(value,style:const TextStyle(fontSize:25,fontWeight:FontWeight.bold)),Text(title,style:const TextStyle(fontSize:13))]))));
  Widget listPage(String title,List<String> items,IconData icon,String action)=>ListView(padding:const EdgeInsets.all(16),children:[
   Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Text(title,style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold)),FilledButton.icon(onPressed:()=>addItem(title,items),icon:const Icon(Icons.add),label:Text(action))]),
-  const SizedBox(height:12),...items.map((item)=>Card(child:ListTile(leading:CircleAvatar(child:Icon(icon)),title:Text(item),subtitle:const Text('بيانات للعرض فقط'),trailing:const Icon(Icons.chevron_left))))]);
+  const SizedBox(height:12),...items.map((item)=>Card(child:ListTile(onTap:title.contains('الردهات')?()=>showWardDetails(item):null,leading:CircleAvatar(child:Icon(icon)),title:Text(item),subtitle:Text(title.contains('الردهات')?'اضغط لعرض مرضى الردهة':'بيانات للعرض فقط'),trailing:const Icon(Icons.chevron_left))))]);
+ void showAbout(){
+  showDialog(context:context,builder:(ctx)=>AlertDialog(
+   title:const Text('حول تطبيق عناية'),
+   content:const SizedBox(width:380,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+    CircleAvatar(radius:38,child:Icon(Icons.health_and_safety_outlined,size:42)),
+    SizedBox(height:12),
+    Text('عناية | ENAYA',style:TextStyle(fontSize:21,fontWeight:FontWeight.bold)),
+    Text('نظام إدارة المستشفيات والرعاية التمريضية',textAlign:TextAlign.center),
+    Divider(height:24),
+    ListTile(contentPadding:EdgeInsets.zero,title:Text('المطوّر'),subtitle:Text('الممرض تمار ميثم كمال الدين الحسيني'),leading:Icon(Icons.person_outline)),
+    ListTile(contentPadding:EdgeInsets.zero,title:Text('الإصدار'),subtitle:Text('0.3.0 • نسخة تجريبية'),leading:Icon(Icons.info_outline)),
+    ListTile(contentPadding:EdgeInsets.zero,title:Text('الهدف'),subtitle:Text('تنظيم المرضى والردهات والعلاجات والملفات، وتسهيل العمل التمريضي داخل المؤسسات الصحية.'),leading:Icon(Icons.flag_outlined)),
+    Text('مساحة صورة المطوّر — تضاف لاحقاً',style:TextStyle(fontSize:12,color:Colors.grey))
+   ]))),
+   actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]
+  ));
+ }
+ void showTreatmentsOverview(){
+  final entries=<String>[];
+  treatmentsByPatient.forEach((patient,list){for(final t in list){entries.add('$patient — ${t.split('|').first}');}});
+  showDialog(context:context,builder:(ctx)=>AlertDialog(
+   title:const Text('العلاجات والتنبيهات'),
+   content:SizedBox(width:380,child:entries.isEmpty?const Text('لا توجد علاجات مسجلة'):ListView(shrinkWrap:true,children:entries.map((e)=>ListTile(leading:const Icon(Icons.notifications_active_outlined),title:Text(e))).toList())),
+   actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]
+  ));
+ }
+ void showWardDetails(String ward){
+  final list=patients.where((p)=>p.contains(ward)).toList();
+  showDialog(context:context,builder:(ctx)=>AlertDialog(
+   title:Text(ward),
+   content:SizedBox(width:380,child:list.isEmpty?const Text('لا يوجد مرضى مسجلون لهذه الردهة حالياً'):ListView(shrinkWrap:true,children:list.map((p)=>ListTile(onTap:(){Navigator.pop(ctx);openPatientProfile(p);},leading:const CircleAvatar(child:Icon(Icons.person_outline)),title:Text(p),subtitle:const Text('فتح ملف المريض'))).toList())),
+   actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]
+  ));
+ }
  void addItem(String title,List<String> items){
   final controller=TextEditingController();
   showDialog(context:context,builder:(ctx)=>AlertDialog(title:Text('إضافة إلى $title'),content:TextField(controller:controller,autofocus:true,decoration:const InputDecoration(hintText:'اكتب الاسم أو التفاصيل')),actions:[
@@ -261,6 +295,6 @@ class _HomePageState extends State<HomePage> {
   const Card(child:ListTile(leading:Icon(Icons.business_outlined),title:Text('المؤسسة الصحية'),subtitle:Text('مؤسسة تجريبية'))),
   const Card(child:ListTile(leading:Icon(Icons.admin_panel_settings_outlined),title:Text('إدارة الصلاحيات'),subtitle:Text('ستتوفر عند ربط الخادم'))),
   const Card(child:ListTile(leading:Icon(Icons.cloud_outlined),title:Text('قاعدة البيانات'),subtitle:Text('غير متصلة — البيانات محلية مؤقتة'))),
-  const Card(child:ListTile(leading:Icon(Icons.info_outline),title:Text('حول التطبيق'),subtitle:Text('CareFlow Prototype 0.1.0'))),
+  Card(child:ListTile(onTap:showAbout,leading:const Icon(Icons.info_outline),title:const Text('حول التطبيق'),subtitle:const Text('عناية ENAYA • الإصدار 0.3.0'))),
   const Padding(padding:EdgeInsets.all(12),child:Text('تنبيه: هذه نسخة واجهة تجريبية فقط. لا تستخدمها لتسجيل بيانات مرضى حقيقية أو لاتخاذ قرارات علاجية.',style:TextStyle(color:Colors.orange)))]);
 }
