@@ -1,4 +1,12 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 void main() => runApp(const CareFlowApp());
 class CareFlowApp extends StatefulWidget {
  const CareFlowApp({super.key});
@@ -18,6 +26,10 @@ class HomePage extends StatefulWidget {
 }
 class _HomePageState extends State<HomePage> {
  int tab=0;
+ final picker=ImagePicker();
+ final notices=FlutterLocalNotificationsPlugin();
+ final photosByPatient=<String,List<Map<String,String>>>{};
+ bool initialized=false;
  final patients=<String>['أحمد علي — ردهة الرجال','محمد حسن — العناية المركزة','زهراء كريم — ردهة النساء'];
  final wards=<String>['ردهة الرجال','ردهة النساء','العناية المركزة','الأطفال'];
  final patientInfo=<String,Map<String,String>>{};
@@ -29,11 +41,22 @@ class _HomePageState extends State<HomePage> {
   'محمد حسن — العناية المركزة':['Ceftriaxone 1 g — IV — 12:00'],
   'زهراء كريم — ردهة النساء':[],
  };
+ @override void initState(){super.initState();initializeCareFlow();}
+ Future<void> initializeCareFlow() async {
+  tzdata.initializeTimeZones(); tz.setLocalLocation(tz.getLocation('Asia/Baghdad'));
+  await notices.initialize(const InitializationSettings(android:AndroidInitializationSettings('@mipmap/ic_launcher')));
+  final a=notices.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+  await a?.requestNotificationsPermission(); await a?.requestExactAlarmsPermission();
+  final p=await SharedPreferences.getInstance(); final raw=p.getString('careflow_patient_photos');
+  if(raw!=null){final data=jsonDecode(raw) as Map<String,dynamic>;data.forEach((k,v){photosByPatient[k]=(v as List).map((e)=>Map<String,String>.from(e)).toList();});}
+  if(mounted)setState(()=>initialized=true);
+ }
+ Future<void> savePatientPhotos() async {final p=await SharedPreferences.getInstance();await p.setString('careflow_patient_photos',jsonEncode(photosByPatient));}
  @override Widget build(BuildContext context) {
   final pages=[dashboard(),patientsPage(),listPage('الردهات والأقسام',wards,Icons.local_hospital_outlined,'إضافة ردهة'),settingsPage()];
   return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
    appBar:AppBar(title:const Row(children:[Icon(Icons.health_and_safety,color:Color(0xff087e8b)),SizedBox(width:9),Text('رِعاية',style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:8),Text('CareFlow',style:TextStyle(fontSize:13))]),actions:[IconButton(onPressed:widget.onTheme,icon:const Icon(Icons.brightness_6_outlined))]),
-   body:SafeArea(child:pages[tab]),
+   body:!initialized?const Center(child:CircularProgressIndicator()):SafeArea(child:pages[tab]),
    bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const[
     NavigationDestination(icon:Icon(Icons.dashboard_outlined),label:'الرئيسية'),
     NavigationDestination(icon:Icon(Icons.people_outline),label:'المرضى'),
@@ -91,6 +114,7 @@ class _HomePageState extends State<HomePage> {
       nursingNotes.putIfAbsent(patient,()=>[]),[],false),
      profileSection(ctx,refresh,patient,'الفحوصات والتحاليل',Icons.biotech_outlined,
       investigations.putIfAbsent(patient,()=>[]),[],false),
+     patientPhotoAlbum(ctx,refresh,patient),
     ]))),
    actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]
   )));
@@ -143,6 +167,27 @@ class _HomePageState extends State<HomePage> {
     },child:const Text('حفظ'))
    ]));
  }
+
+ Widget patientPhotoAlbum(BuildContext ctx,StateSetter refresh,String patient){
+  final list=photosByPatient.putIfAbsent(patient,()=>[]);
+  return Card(child:ExpansionTile(leading:const Icon(Icons.photo_library_outlined),title:const Text('ألبوم صور التحاليل والفحوصات'),subtitle:Text(list.length.toString()+' صورة'),children:[
+   Wrap(spacing:8,children:[OutlinedButton.icon(onPressed:()=>takePatientPhoto(ctx,refresh,patient),icon:const Icon(Icons.camera_alt),label:const Text('التقاط صورة')),FilledButton.tonalIcon(onPressed:()=>pickPatientPhotos(ctx,refresh,patient),icon:const Icon(Icons.photo_library),label:const Text('اختيار من المعرض'))]),
+   if(list.isEmpty)const Padding(padding:EdgeInsets.all(12),child:Text('لا توجد صور مضافة')),
+   Padding(padding:const EdgeInsets.all(8),child:GridView.builder(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:3,crossAxisSpacing:8,mainAxisSpacing:8),itemCount:list.length,itemBuilder:(c,i)=>GestureDetector(onTap:()=>viewPatientPhoto(ctx,refresh,patient,i),child:ClipRRect(borderRadius:BorderRadius.circular(8),child:Image.file(File(list[i]['path']!),fit:BoxFit.cover)))))
+  ]));
+ }
+ Future<void> takePatientPhoto(BuildContext ctx,StateSetter refresh,String patient) async {final x=await picker.pickImage(source:ImageSource.camera,imageQuality:100);if(x!=null)await storePatientPhoto(refresh,patient,x);}
+ Future<void> pickPatientPhotos(BuildContext ctx,StateSetter refresh,String patient) async {final xs=await picker.pickMultiImage(imageQuality:100);for(final x in xs){await storePatientPhoto(refresh,patient,x);}}
+ Future<void> storePatientPhoto(StateSetter refresh,String patient,XFile x) async {
+  final dir=await getApplicationDocumentsDirectory();final folder=Directory(dir.path+'/patient_lab_photos');if(!await folder.exists())await folder.create(recursive:true);
+  final path=folder.path+'/'+DateTime.now().microsecondsSinceEpoch.toString()+'_'+x.name;await File(x.path).copy(path);
+  photosByPatient.putIfAbsent(patient,()=>[]).insert(0,{'path':path,'date':DateTime.now().toIso8601String()});await savePatientPhotos();if(mounted)refresh((){});
+ }
+ void viewPatientPhoto(BuildContext ctx,StateSetter refresh,String patient,int index){showDialog(context:ctx,builder:(d)=>Dialog(child:Column(mainAxisSize:MainAxisSize.min,children:[
+  Padding(padding:const EdgeInsets.all(8),child:Row(children:[Expanded(child:Text(photosByPatient[patient]![index]['date']??'')),IconButton(icon:const Icon(Icons.delete_outline,color:Colors.red),onPressed:()async{final item=photosByPatient[patient]!.removeAt(index);try{await File(item['path']!).delete();}catch(_){}await savePatientPhotos();if(d.mounted)Navigator.pop(d);refresh((){});})])),
+  Flexible(child:InteractiveViewer(minScale:0.5,maxScale:5,child:Image.file(File(photosByPatient[patient]![index]['path']!),fit:BoxFit.contain)))
+ ])));}
+
  void addTreatment(String patient){
   final controller=TextEditingController();
   showDialog(context:context,builder:(ctx)=>AlertDialog(
