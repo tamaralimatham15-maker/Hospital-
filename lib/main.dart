@@ -286,9 +286,28 @@ class _HomePageState extends State<HomePage> {
  }
  void addItem(String title,List<String> items){
   final controller=TextEditingController();
-  showDialog(context:context,builder:(ctx)=>AlertDialog(title:Text('إضافة إلى $title'),content:TextField(controller:controller,autofocus:true,decoration:const InputDecoration(hintText:'اكتب الاسم أو التفاصيل')),actions:[
-   TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),
-   FilledButton(onPressed:(){if(controller.text.trim().isNotEmpty){setState(()=>items.add(controller.text.trim()));saveAllData();}Navigator.pop(ctx);},child:const Text('إضافة'))]));
+  String selectedWard=wards.isNotEmpty?wards.first:'';
+  showDialog(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+   title:Text('إضافة إلى $title'),
+   content:Column(mainAxisSize:MainAxisSize.min,children:[
+    TextField(controller:controller,autofocus:true,decoration:const InputDecoration(hintText:'اكتب الاسم أو التفاصيل')),
+    if(title.contains('المرضى')) ...[
+     const SizedBox(height:12),
+     DropdownButtonFormField<String>(value:wards.contains(selectedWard)?selectedWard:null,decoration:const InputDecoration(labelText:'الردهة'),items:wards.map((w)=>DropdownMenuItem(value:w,child:Text(w))).toList(),onChanged:(v)=>refresh(()=>selectedWard=v??''))
+    ]
+   ]),
+   actions:[
+    TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),
+    FilledButton(onPressed:(){
+     final name=controller.text.trim();
+     if(name.isNotEmpty){
+      final entry=title.contains('المرضى')&&selectedWard.isNotEmpty?'$name — $selectedWard':name;
+      setState(()=>items.add(entry));saveAllData();
+     }
+     Navigator.pop(ctx);
+    },child:const Text('إضافة'))
+   ]
+  )));
  }
  Widget settingsPage()=>ListView(padding:const EdgeInsets.all(16),children:[
   const Text('الإعدادات',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),const SizedBox(height:12),
