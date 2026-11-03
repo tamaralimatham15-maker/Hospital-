@@ -89,7 +89,9 @@ class _HomePageState extends State<HomePage> {
       const Padding(padding:EdgeInsets.all(12),child:Text('لا توجد علاجات مضافة لهذا المريض')),
      ...(treatmentsByPatient[patient]??[]).map((t)=>ListTile(
       leading:const Icon(Icons.medication_outlined,color:Color(0xff087e8b)),
-      title:Text(t),dense:true)),
+      title:Text(t.split('|').first),
+      subtitle:t.split('|').length==4?Text('الجرعة: '+t.split('|')[1]+' • '+t.split('|')[2]+' • '+DateTime.parse(t.split('|')[3]).toLocal().toString()):null,
+      trailing:t.split('|').length==4?TextButton(onPressed:()=>confirmTreatment(t),child:const Text('تم إعطاء العلاج')):null,dense:true)),
      Padding(padding:const EdgeInsets.fromLTRB(16,4,16,4),child:Wrap(
       spacing:8,runSpacing:8,alignment:WrapAlignment.center,children:[
        OutlinedButton.icon(
@@ -188,20 +190,39 @@ class _HomePageState extends State<HomePage> {
   Flexible(child:InteractiveViewer(minScale:0.5,maxScale:5,child:Image.file(File(photosByPatient[patient]![index]['path']!),fit:BoxFit.contain)))
  ])));}
 
- void addTreatment(String patient){
-  final controller=TextEditingController();
-  showDialog(context:context,builder:(ctx)=>AlertDialog(
-   title:Text('إضافة علاج — $patient'),
-   content:TextField(controller:controller,maxLines:3,autofocus:true,
-    decoration:const InputDecoration(hintText:'اسم العلاج، الجرعة، الطريق، الوقت',border:OutlineInputBorder())),
-   actions:[
-    TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),
-    FilledButton(onPressed:(){
-     final value=controller.text.trim();
-     if(value.isNotEmpty)setState(()=>treatmentsByPatient.putIfAbsent(patient,()=>[]).add(value));
-     Navigator.pop(ctx);
-    },child:const Text('حفظ العلاج'))
-   ]));
+
+ Future<void> scheduleTreatment(String patient,String raw) async {
+  final p=raw.split('|');if(p.length!=4)return;final when=DateTime.tryParse(p[3]);if(when==null)return;
+  final base=raw.hashCode.abs()%10000000,now=DateTime.now();
+  const pre=NotificationDetails(android:AndroidNotificationDetails('careflow_pre','تنبيه قبل موعد العلاج',channelDescription:'تنبيه قبل الموعد بخمس دقائق',importance:Importance.high,priority:Priority.high,playSound:true));
+  const due=NotificationDetails(android:AndroidNotificationDetails('careflow_due','مواعيد إعطاء العلاج',channelDescription:'تنبيهات صوتية متكررة لموعد العلاج',importance:Importance.max,priority:Priority.max,playSound:true,category:AndroidNotificationCategory.alarm));
+  final before=when.subtract(const Duration(minutes:5));
+  if(before.isAfter(now))await notices.zonedSchedule(base,'موعد علاج قريب','بعد 5 دقائق: '+patient+' — '+p[0]+'، '+p[1]+'، '+p[2],tz.TZDateTime.from(before,tz.local),pre,androidScheduleMode:AndroidScheduleMode.exactAllowWhileIdle,payload:raw);
+  if(when.isAfter(now))await notices.zonedSchedule(base+1,'حان موعد إعطاء العلاج',patient+' — '+p[0]+'، الجرعة '+p[1]+'، طريقة الإعطاء '+p[2],tz.TZDateTime.from(when,tz.local),due,androidScheduleMode:AndroidScheduleMode.exactAllowWhileIdle,payload:raw);
+  for(var i=1;i<=30;i++){final at=when.add(Duration(minutes:2*i));if(at.isAfter(now))await notices.zonedSchedule(base+1+i,'تذكير: العلاج لم يُؤكّد بعد',patient+' — '+p[0]+'، '+p[1]+'، '+p[2]+'. افتح رِعاية وسجّل إعطاء العلاج.',tz.TZDateTime.from(at,tz.local),due,androidScheduleMode:AndroidScheduleMode.exactAllowWhileIdle,payload:raw);}
+ }
+ Future<void> confirmTreatment(String raw) async {final b=raw.hashCode.abs()%10000000;for(var i=0;i<=31;i++){await notices.cancel(b+i);} }
+
+ void addTreatment(String patient) async {
+  final name=TextEditingController(),dose=TextEditingController();
+  String route='IV';DateTime day=DateTime.now();TimeOfDay time=TimeOfDay.fromDateTime(DateTime.now().add(const Duration(minutes:10)));
+  final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+   title:Text('إضافة علاج — '+patient),
+   content:SizedBox(width:380,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+    TextField(controller:name,decoration:const InputDecoration(labelText:'اسم العلاج')),
+    TextField(controller:dose,decoration:const InputDecoration(labelText:'الجرعة')),
+    DropdownButtonFormField<String>(value:route,decoration:const InputDecoration(labelText:'كيفية الإعطاء'),items:const ['IV','IM','Oral','SC','Topical','Inhalation','Other'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>route=v??'IV')),
+    ListTile(title:const Text('تاريخ العلاج'),subtitle:Text(day.toString().substring(0,10)),onTap:()async{final d=await showDatePicker(context:ctx,initialDate:day,firstDate:DateTime.now().subtract(const Duration(days:1)),lastDate:DateTime.now().add(const Duration(days:365)));if(d!=null)refresh(()=>day=d);}),
+    ListTile(title:const Text('وقت إعطاء العلاج'),subtitle:Text(time.format(ctx)),onTap:()async{final t=await showTimePicker(context:ctx,initialTime:time);if(t!=null)refresh(()=>time=t);})
+   ]))),
+   actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ العلاج'))]
+  )));
+  if(ok==true&&name.text.trim().isNotEmpty&&dose.text.trim().isNotEmpty){
+   final when=DateTime(day.year,day.month,day.day,time.hour,time.minute);
+   final raw=name.text.trim()+'|'+dose.text.trim()+'|'+route+'|'+when.toIso8601String();
+   setState(()=>treatmentsByPatient.putIfAbsent(patient,()=>[]).add(raw));
+   await scheduleTreatment(patient,raw);
+  }
  }
  Widget statCard(String title,String value,IconData icon)=>Card(elevation:0,color:Theme.of(context).colorScheme.surfaceContainerHighest,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Icon(icon,color:const Color(0xff087e8b)),Text(value,style:const TextStyle(fontSize:25,fontWeight:FontWeight.bold)),Text(title,style:const TextStyle(fontSize:13))])));
  Widget listPage(String title,List<String> items,IconData icon,String action)=>ListView(padding:const EdgeInsets.all(16),children:[
