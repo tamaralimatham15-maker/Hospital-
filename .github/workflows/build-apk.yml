@@ -51,6 +51,18 @@ jobs:
               s = s.replace(marker, permissions + marker, 1)
               p.write_text(s)
           PY
+      - name: Set ENAYA Android app label
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          s, count = re.subn(r'android:label="[^"]+"', 'android:label="عناية"', s, count=1)
+          if count != 1:
+              raise SystemExit("Could not set Android app label")
+          p.write_text(s)
+          PY
       - run: flutter pub get
       - name: Analyze Flutter project (non-blocking)
         run: flutter analyze || true
