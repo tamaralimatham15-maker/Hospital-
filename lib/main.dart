@@ -20,6 +20,10 @@ class _HomePageState extends State<HomePage> {
  int tab=0;
  final patients=<String>['أحمد علي — ردهة الرجال','محمد حسن — العناية المركزة','زهراء كريم — ردهة النساء'];
  final wards=<String>['ردهة الرجال','ردهة النساء','العناية المركزة','الأطفال'];
+ final patientInfo=<String,Map<String,String>>{};
+ final vitalSigns=<String,List<String>>{};
+ final nursingNotes=<String,List<String>>{};
+ final investigations=<String,List<String>>{};
  final treatmentsByPatient=<String,List<String>>{
   'أحمد علي — ردهة الرجال':['Paracetamol 1 g — IV — 08:00','Normal Saline — IV — 18:00'],
   'محمد حسن — العناية المركزة':['Ceftriaxone 1 g — IV — 12:00'],
@@ -63,13 +67,82 @@ class _HomePageState extends State<HomePage> {
      ...(treatmentsByPatient[patient]??[]).map((t)=>ListTile(
       leading:const Icon(Icons.medication_outlined,color:Color(0xff087e8b)),
       title:Text(t),dense:true)),
-     Padding(padding:const EdgeInsets.fromLTRB(16,4,16,12),child:Align(
-      alignment:Alignment.centerRight,
-      child:OutlinedButton.icon(
-       onPressed:()=>addTreatment(patient),
-       icon:const Icon(Icons.add),label:const Text('إضافة علاج لهذا المريض'))))
+     Padding(padding:const EdgeInsets.fromLTRB(16,4,16,4),child:Wrap(
+      spacing:8,runSpacing:8,alignment:WrapAlignment.center,children:[
+       OutlinedButton.icon(
+        onPressed:()=>addTreatment(patient),
+        icon:const Icon(Icons.add),label:const Text('إضافة علاج')),
+       FilledButton.tonalIcon(
+        onPressed:()=>openPatientProfile(patient),
+        icon:const Icon(Icons.folder_open_outlined),label:const Text('ملف المريض'))
+      ]))
     ]))),
  ]);
+ void openPatientProfile(String patient){
+  showDialog(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+   title:Text('ملف المريض\\n$patient',style:const TextStyle(fontSize:18)),
+   content:SizedBox(width:420,child:SingleChildScrollView(child:Column(
+    mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+     profileSection(ctx,refresh,patient,'المعلومات الأساسية',Icons.person_outline,
+      patientInfo.putIfAbsent(patient,()=>{}),['العمر','الجنس','التشخيص','الحساسية'],true),
+     profileSection(ctx,refresh,patient,'العلامات الحيوية',Icons.monitor_heart_outlined,
+      vitalSigns.putIfAbsent(patient,()=>[]),[],false),
+     profileSection(ctx,refresh,patient,'الملاحظات التمريضية',Icons.note_alt_outlined,
+      nursingNotes.putIfAbsent(patient,()=>[]),[],false),
+     profileSection(ctx,refresh,patient,'الفحوصات والتحاليل',Icons.biotech_outlined,
+      investigations.putIfAbsent(patient,()=>[]),[],false),
+    ]))),
+   actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]
+  )));
+ }
+ Widget profileSection(BuildContext dialogContext,StateSetter refresh,String patient,
+  String title,IconData icon,dynamic data,List<String> fields,bool isInfo){
+  final count=isInfo?(data as Map<String,String>).length:(data as List<String>).length;
+  return Card(child:ExpansionTile(
+   leading:Icon(icon,color:const Color(0xff087e8b)),title:Text(title),
+   subtitle:Text(count==0?'لا توجد معلومات مضافة':'$count عنصر'),
+   children:[
+    if(isInfo)...(fields.map((field){
+     final value=(data as Map<String,String>)[field];
+     return ListTile(dense:true,title:Text(field),subtitle:Text(value==null||value.isEmpty?'غير محدد':value));
+    })),
+    if(!isInfo)...((data as List<String>).map((entry)=>ListTile(
+     dense:true,leading:const Icon(Icons.circle,size:7),title:Text(entry)))),
+    Padding(padding:const EdgeInsets.fromLTRB(12,0,12,12),child:Align(
+     alignment:Alignment.centerRight,child:TextButton.icon(
+      onPressed:()=>addProfileEntry(dialogContext,refresh,patient,title,data,fields,isInfo),
+      icon:const Icon(Icons.add),label:Text(isInfo?'إضافة معلومات':'إضافة سجل'))))
+   ]));
+ }
+ void addProfileEntry(BuildContext dialogContext,StateSetter refresh,String patient,
+  String section,dynamic data,List<String> fields,bool isInfo){
+  final controllers=<String,TextEditingController>{};
+  if(isInfo){for(final field in fields){controllers[field]=TextEditingController(text:(data as Map<String,String>)[field]??'');}}
+  else {controllers['entry']=TextEditingController();}
+  showDialog(context:dialogContext,builder:(entryContext)=>AlertDialog(
+   title:Text('إضافة — $section'),
+   content:SizedBox(width:380,child:SingleChildScrollView(child:Column(
+    mainAxisSize:MainAxisSize.min,children:isInfo
+     ?fields.map((field)=>Padding(padding:const EdgeInsets.only(bottom:8),child:TextField(
+       controller:controllers[field],decoration:InputDecoration(labelText:field,border:const OutlineInputBorder())))).toList()
+     :[TextField(controller:controllers['entry'],maxLines:3,decoration:const InputDecoration(
+       hintText:'اكتب التفاصيل',border:OutlineInputBorder()))]))),
+   actions:[
+    TextButton(onPressed:()=>Navigator.pop(entryContext),child:const Text('إلغاء')),
+    FilledButton(onPressed:(){
+     if(isInfo){
+      final map=data as Map<String,String>;
+      for(final field in fields){final value=controllers[field]!.text.trim();if(value.isNotEmpty)map[field]=value;}
+     }else{
+      final value=controllers['entry']!.text.trim();
+      if(value.isNotEmpty)(data as List<String>).insert(0,value);
+     }
+     setState((){});
+     refresh((){});
+     Navigator.pop(entryContext);
+    },child:const Text('حفظ'))
+   ]));
+ }
  void addTreatment(String patient){
   final controller=TextEditingController();
   showDialog(context:context,builder:(ctx)=>AlertDialog(
