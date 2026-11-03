@@ -29,6 +29,7 @@ class _HomePageState extends State<HomePage> {
  final picker=ImagePicker();
  final notices=FlutterLocalNotificationsPlugin();
  final photosByPatient=<String,List<Map<String,String>>>{};
+ final completedTreatments=<String>{};
  bool initialized=false;
  final patients=<String>['أحمد علي — ردهة الرجال','محمد حسن — العناية المركزة','زهراء كريم — ردهة النساء'];
  final wards=<String>['ردهة الرجال','ردهة النساء','العناية المركزة','الأطفال'];
@@ -47,11 +48,15 @@ class _HomePageState extends State<HomePage> {
   await notices.initialize(const InitializationSettings(android:AndroidInitializationSettings('@mipmap/ic_launcher')));
   final a=notices.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
   await a?.requestNotificationsPermission(); await a?.requestExactAlarmsPermission();
-  final p=await SharedPreferences.getInstance(); final raw=p.getString('careflow_patient_photos');
+  final p=await SharedPreferences.getInstance();
+  final savedDoses=p.getString('careflow_treatments');if(savedDoses!=null){final m=jsonDecode(savedDoses) as Map<String,dynamic>;m.forEach((k,v){treatmentsByPatient[k]=(v as List).cast<String>();});}
+  final done=p.getStringList('careflow_completed_treatments');if(done!=null)completedTreatments.addAll(done);
+  final raw=p.getString('careflow_patient_photos');
   if(raw!=null){final data=jsonDecode(raw) as Map<String,dynamic>;data.forEach((k,v){photosByPatient[k]=(v as List).map((e)=>Map<String,String>.from(e)).toList();});}
   if(mounted)setState(()=>initialized=true);
  }
  Future<void> savePatientPhotos() async {final p=await SharedPreferences.getInstance();await p.setString('careflow_patient_photos',jsonEncode(photosByPatient));}
+ Future<void> saveTreatments() async {final p=await SharedPreferences.getInstance();await p.setString('careflow_treatments',jsonEncode(treatmentsByPatient));await p.setStringList('careflow_completed_treatments',completedTreatments.toList());}
  @override Widget build(BuildContext context) {
   final pages=[dashboard(),patientsPage(),listPage('الردهات والأقسام',wards,Icons.local_hospital_outlined,'إضافة ردهة'),settingsPage()];
   return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
@@ -90,8 +95,8 @@ class _HomePageState extends State<HomePage> {
      ...(treatmentsByPatient[patient]??[]).map((t)=>ListTile(
       leading:const Icon(Icons.medication_outlined,color:Color(0xff087e8b)),
       title:Text(t.split('|').first),
-      subtitle:t.split('|').length==4?Text('الجرعة: '+t.split('|')[1]+' • '+t.split('|')[2]+' • '+DateTime.parse(t.split('|')[3]).toLocal().toString()):null,
-      trailing:t.split('|').length==4?TextButton(onPressed:()=>confirmTreatment(t),child:const Text('تم إعطاء العلاج')):null,dense:true)),
+      subtitle:t.split('|').length==4?Text('الجرعة: '+t.split('|')[1]+' • '+t.split('|')[2]+' • '+DateTime.parse(t.split('|')[3]).toLocal().toString()+' • '+(completedTreatments.contains(t)?'تم التأكيد':'بانتظار التأكيد')):null,
+      trailing:t.split('|').length==4&&!completedTreatments.contains(t)?TextButton(onPressed:()=>confirmTreatment(t),child:const Text('تم إعطاء العلاج')):null,dense:true)),
      Padding(padding:const EdgeInsets.fromLTRB(16,4,16,4),child:Wrap(
       spacing:8,runSpacing:8,alignment:WrapAlignment.center,children:[
        OutlinedButton.icon(
@@ -201,7 +206,7 @@ class _HomePageState extends State<HomePage> {
   if(when.isAfter(now))await notices.zonedSchedule(base+1,'حان موعد إعطاء العلاج',patient+' — '+p[0]+'، الجرعة '+p[1]+'، طريقة الإعطاء '+p[2],tz.TZDateTime.from(when,tz.local),due,androidScheduleMode:AndroidScheduleMode.exactAllowWhileIdle,payload:raw);
   for(var i=1;i<=30;i++){final at=when.add(Duration(minutes:2*i));if(at.isAfter(now))await notices.zonedSchedule(base+1+i,'تذكير: العلاج لم يُؤكّد بعد',patient+' — '+p[0]+'، '+p[1]+'، '+p[2]+'. افتح رِعاية وسجّل إعطاء العلاج.',tz.TZDateTime.from(at,tz.local),due,androidScheduleMode:AndroidScheduleMode.exactAllowWhileIdle,payload:raw);}
  }
- Future<void> confirmTreatment(String raw) async {final b=raw.hashCode.abs()%10000000;for(var i=0;i<=31;i++){await notices.cancel(b+i);} }
+ Future<void> confirmTreatment(String raw) async {final b=raw.hashCode.abs()%10000000;for(var i=0;i<=31;i++){await notices.cancel(b+i);}completedTreatments.add(raw);await saveTreatments();if(mounted)setState((){});}
 
  void addTreatment(String patient) async {
   final name=TextEditingController(),dose=TextEditingController();
@@ -221,7 +226,7 @@ class _HomePageState extends State<HomePage> {
    final when=DateTime(day.year,day.month,day.day,time.hour,time.minute);
    final raw=name.text.trim()+'|'+dose.text.trim()+'|'+route+'|'+when.toIso8601String();
    setState(()=>treatmentsByPatient.putIfAbsent(patient,()=>[]).add(raw));
-   await scheduleTreatment(patient,raw);
+   await saveTreatments();await scheduleTreatment(patient,raw);
   }
  }
  Widget statCard(String title,String value,IconData icon)=>Card(elevation:0,color:Theme.of(context).colorScheme.surfaceContainerHighest,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Icon(icon,color:const Color(0xff087e8b)),Text(value,style:const TextStyle(fontSize:25,fontWeight:FontWeight.bold)),Text(title,style:const TextStyle(fontSize:13))])));
