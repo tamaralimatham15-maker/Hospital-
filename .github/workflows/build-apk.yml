@@ -23,16 +23,16 @@ jobs:
           s = p.read_text()
           kotlin = p.name.endswith(".kts")
           if "isCoreLibraryDesugaringEnabled" not in s and "coreLibraryDesugaringEnabled" not in s:
-              compile_block = ("    compileOptions {\\n        isCoreLibraryDesugaringEnabled = true\\n    }\\n" if kotlin else "    compileOptions {\\n        coreLibraryDesugaringEnabled true\\n    }\\n")
+              compile_block = ("    compileOptions {\n        isCoreLibraryDesugaringEnabled = true\n    }\n" if kotlin else "    compileOptions {\n        coreLibraryDesugaringEnabled true\n    }\n")
               if "compileOptions {" in s:
-                  s = s.replace("compileOptions {", "compileOptions {\\n        " + ("isCoreLibraryDesugaringEnabled = true" if kotlin else "coreLibraryDesugaringEnabled true"), 1)
+                  s = s.replace("compileOptions {", "compileOptions {\n        " + ("isCoreLibraryDesugaringEnabled = true" if kotlin else "coreLibraryDesugaringEnabled true"), 1)
               elif "android {" in s:
-                  s = s.replace("android {", "android {\\n" + compile_block, 1)
+                  s = s.replace("android {", "android {\n" + compile_block, 1)
               else:
                   raise SystemExit("Could not find android block in Gradle file")
-          dep = ('dependencies {\\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\\n}\\n' if kotlin else 'dependencies {\\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"\\n}\\n')
+          dep = ('dependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n' if kotlin else 'dependencies {\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"\n}\n')
           if "desugar_jdk_libs" not in s:
-              s += "\\n" + dep
+              s += "\n" + dep
           p.write_text(s)
           print(f"Configured core library desugaring in {p}")
           PY
