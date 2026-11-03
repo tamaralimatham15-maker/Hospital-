@@ -15,7 +15,7 @@ class CareFlowApp extends StatefulWidget {
 class _CareFlowAppState extends State<CareFlowApp> {
  ThemeMode mode = ThemeMode.light;
  @override Widget build(BuildContext context) => MaterialApp(
-  debugShowCheckedModeBanner:false, title:'رِعاية | CareFlow', themeMode:mode,
+  debugShowCheckedModeBanner:false, title:'عناية | ENAYA', themeMode:mode,
   theme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff087e8b)),useMaterial3:true),
   darkTheme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff43c6c9),brightness:Brightness.dark),useMaterial3:true),
   home:HomePage(onTheme:()=>setState(()=>mode=mode==ThemeMode.light?ThemeMode.dark:ThemeMode.light)));
@@ -60,7 +60,7 @@ class _HomePageState extends State<HomePage> {
  @override Widget build(BuildContext context) {
   final pages=[dashboard(),patientsPage(),listPage('الردهات والأقسام',wards,Icons.local_hospital_outlined,'إضافة ردهة'),settingsPage()];
   return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
-   appBar:AppBar(title:const Row(children:[Icon(Icons.health_and_safety,color:Color(0xff087e8b)),SizedBox(width:9),Text('رِعاية',style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:8),Text('CareFlow',style:TextStyle(fontSize:13))]),actions:[IconButton(onPressed:widget.onTheme,icon:const Icon(Icons.brightness_6_outlined))]),
+   appBar:AppBar(title:const Row(children:[Icon(Icons.health_and_safety,color:Color(0xff087e8b)),SizedBox(width:9),Text('عناية',style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:8),Text('ENAYA',style:TextStyle(fontSize:13))]),actions:[IconButton(onPressed:widget.onTheme,icon:const Icon(Icons.brightness_6_outlined))]),
    body:!initialized?const Center(child:CircularProgressIndicator()):SafeArea(child:pages[tab]),
    bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const[
     NavigationDestination(icon:Icon(Icons.dashboard_outlined),label:'الرئيسية'),
@@ -70,15 +70,15 @@ class _HomePageState extends State<HomePage> {
  }
  Widget dashboard()=>ListView(padding:const EdgeInsets.all(16),children:[
   Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(22),gradient:const LinearGradient(colors:[Color(0xff087e8b),Color(0xff155e75)])),child:const Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-   Text('مرحباً بك في رِعاية',style:TextStyle(color:Colors.white,fontSize:23,fontWeight:FontWeight.bold)),SizedBox(height:8),
+   Text('مرحباً بك في عناية',style:TextStyle(color:Colors.white,fontSize:23,fontWeight:FontWeight.bold)),SizedBox(height:8),
    Text('نظام تجريبي لتنظيم العمل داخل المؤسسة الصحية',style:TextStyle(color:Colors.white70)),SizedBox(height:16),
    Row(children:[Icon(Icons.shield_outlined,color:Colors.white),SizedBox(width:8),Text('بيئة تجريبية — بيانات وهمية',style:TextStyle(color:Colors.white))])])),
   const SizedBox(height:18),
   GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:2,crossAxisSpacing:12,mainAxisSpacing:12,childAspectRatio:1.45,children:[
-   statCard('المرضى',patients.length.toString(),Icons.people_alt_outlined),statCard('الردهات',wards.length.toString(),Icons.apartment),
+   statCard('المرضى',patients.length.toString(),Icons.people_alt_outlined,onTap:()=>setState(()=>tab=1)),statCard('الردهات',wards.length.toString(),Icons.apartment,onTap:()=>setState(()=>tab=2)),
    statCard('العلاجات المسجلة',treatmentsByPatient.values.fold<int>(0,(sum,list)=>sum+list.length).toString(),Icons.medication_outlined),statCard('تنبيهات اليوم','2',Icons.notifications_active_outlined)]),
   const SizedBox(height:18),const Text('آخر المرضى',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
-  ...patients.map((p)=>Card(child:ListTile(leading:const CircleAvatar(child:Icon(Icons.person_outline)),title:Text(p),subtitle:const Text('ملف تجريبي'))))]);
+  ...patients.map((p)=>Card(child:ListTile(onTap:()=>openPatientProfile(p),leading:const CircleAvatar(child:Icon(Icons.person_outline)),title:Text(p),subtitle:const Text('اضغط لفتح ملف المريض'),trailing:const Icon(Icons.chevron_left))))]);
  Widget patientsPage()=>ListView(padding:const EdgeInsets.all(16),children:[
   Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[
    const Text('المرضى',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),
@@ -229,7 +229,7 @@ class _HomePageState extends State<HomePage> {
    await saveTreatments();await scheduleTreatment(patient,raw);
   }
  }
- Widget statCard(String title,String value,IconData icon)=>Card(elevation:0,color:Theme.of(context).colorScheme.surfaceContainerHighest,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Icon(icon,color:const Color(0xff087e8b)),Text(value,style:const TextStyle(fontSize:25,fontWeight:FontWeight.bold)),Text(title,style:const TextStyle(fontSize:13))])));
+ Widget statCard(String title,String value,IconData icon,{VoidCallback? onTap})=>Card(elevation:0,color:Theme.of(context).colorScheme.surfaceContainerHighest,child:InkWell(borderRadius:BorderRadius.circular(12),onTap:onTap,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Icon(icon,color:const Color(0xff087e8b)),Text(value,style:const TextStyle(fontSize:25,fontWeight:FontWeight.bold)),Text(title,style:const TextStyle(fontSize:13))]))));
  Widget listPage(String title,List<String> items,IconData icon,String action)=>ListView(padding:const EdgeInsets.all(16),children:[
   Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Text(title,style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold)),FilledButton.icon(onPressed:()=>addItem(title,items),icon:const Icon(Icons.add),label:Text(action))]),
   const SizedBox(height:12),...items.map((item)=>Card(child:ListTile(leading:CircleAvatar(child:Icon(icon)),title:Text(item),subtitle:const Text('بيانات للعرض فقط'),trailing:const Icon(Icons.chevron_left))))]);
