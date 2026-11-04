@@ -60,8 +60,12 @@ class _HomePageState extends State<HomePage> {
   investigations.addAll(readSaved('enaya_investigations').map((k,v)=>MapEntry(k,List<String>.from(v))));
   final raw=p.getString('careflow_patient_photos');
   if(raw!=null){final data=jsonDecode(raw) as Map<String,dynamic>;data.forEach((k,v){photosByPatient[k]=(v as List).map((e)=>Map<String,String>.from(e)).toList();});}
+  await rescheduleAllTreatmentNotifications();
   if(mounted)setState(()=>initialized=true);
  }
+ int treatmentNotificationBase(String raw){var hash=0x811c9dc5;for(final unit in raw.codeUnits){hash^=unit;hash=(hash*0x01000193)&0x3fffffff;}return 10000+(hash%1000000000);}
+ Future<void> cancelTreatmentNotifications(String raw) async {final base=treatmentNotificationBase(raw);for(var i=0;i<=31;i++){await notices.cancel(base+i);}}
+ Future<void> rescheduleAllTreatmentNotifications() async {await notices.cancelAll();for(final entry in treatmentsByPatient.entries){for(final raw in entry.value){if(!completedTreatments.contains(raw))await scheduleTreatment(entry.key,raw);}}}
  Future<void> saveAllData() async {
   final p=await SharedPreferences.getInstance();
   await p.setStringList('enaya_patients',patients);
@@ -113,7 +117,7 @@ class _HomePageState extends State<HomePage> {
       leading:const Icon(Icons.medication_outlined,color:Color(0xff087e8b)),
       title:Text(t.split('|').first),
       subtitle:t.split('|').length==4?Text('الجرعة: '+t.split('|')[1]+' • '+t.split('|')[2]+' • '+DateTime.parse(t.split('|')[3]).toLocal().toString()+' • '+(completedTreatments.contains(t)?'تم التأكيد':'بانتظار التأكيد')):null,
-      trailing:t.split('|').length==4&&!completedTreatments.contains(t)?TextButton(onPressed:()=>confirmTreatment(t),child:const Text('تم إعطاء العلاج')):null,dense:true)),
+      trailing:Wrap(spacing:0,children:[if(t.split('|').length==4&&!completedTreatments.contains(t))TextButton(onPressed:()=>confirmTreatment(t),child:const Text('تم إعطاء العلاج')),IconButton(tooltip:'حذف العلاج',onPressed:()=>confirmDeleteTreatment(patient,t),icon:const Icon(Icons.delete_outline,color:Colors.red))]),dense:true)),
      Padding(padding:const EdgeInsets.fromLTRB(16,4,16,4),child:Wrap(
       spacing:8,runSpacing:8,alignment:WrapAlignment.center,children:[
        OutlinedButton.icon(
@@ -121,7 +125,8 @@ class _HomePageState extends State<HomePage> {
         icon:const Icon(Icons.add),label:const Text('إضافة علاج')),
        FilledButton.tonalIcon(
         onPressed:()=>openPatientProfile(patient),
-        icon:const Icon(Icons.folder_open_outlined),label:const Text('ملف المريض'))
+        icon:const Icon(Icons.folder_open_outlined),label:const Text('ملف المريض')),
+       OutlinedButton.icon(onPressed:()=>confirmDeletePatient(patient),icon:const Icon(Icons.delete_outline,color:Colors.red),label:const Text('حذف المريض'))
       ]))
     ]))),
  ]);
@@ -165,9 +170,8 @@ class _HomePageState extends State<HomePage> {
        final doses=treatmentsByPatient.remove(patient)??<String>[];
        treatmentsByPatient[updated]=doses;
        for(final raw in doses){
-        final base=raw.hashCode.abs()%10000000;
-        for(var i=0;i<=31;i++){await notices.cancel(base+i);}
-        await scheduleTreatment(updated,raw);
+        await cancelTreatmentNotifications(raw);
+        if(!completedTreatments.contains(raw))await scheduleTreatment(updated,raw);
        }
        await saveAllData();await savePatientPhotos();await saveTreatments();
       }
@@ -274,8 +278,7 @@ class _HomePageState extends State<HomePage> {
     ]),
     if(parts.length==4&&DateTime.tryParse(parts[3])!=null)
      Text('التاريخ: ${DateTime.parse(parts[3]).toLocal().toString().substring(0,10)}',style:const TextStyle(fontSize:13,color:Colors.grey)),
-    if(!isDone)Align(alignment:Alignment.centerLeft,child:TextButton.icon(
-     onPressed:()=>confirmTreatment(raw),icon:const Icon(Icons.check_circle_outline),label:const Text('تم إعطاء العلاج')))
+    Wrap(alignment:WrapAlignment.spaceBetween,children:[if(!isDone)TextButton.icon(onPressed:()=>confirmTreatment(raw),icon:const Icon(Icons.check_circle_outline),label:const Text('تم إعطاء العلاج')),TextButton.icon(onPressed:()=>confirmDeleteTreatment(patient,raw),icon:const Icon(Icons.delete_outline,color:Colors.red),label:const Text('حذف العلاج'))])
    ])));
  }
  Widget treatmentsOverviewPage()=>ListView(padding:const EdgeInsets.all(16),children:[
@@ -319,18 +322,21 @@ class _HomePageState extends State<HomePage> {
  ])));}
 
 
+ Future<void> scheduleNotification(int id,String title,String body,DateTime when,NotificationDetails details,String raw) async {try{await notices.zonedSchedule(id,title,body,tz.TZDateTime.from(when,tz.local),details,androidScheduleMode:AndroidScheduleMode.exactAllowWhileIdle,payload:raw);}catch(_){try{await notices.zonedSchedule(id,title,body,tz.TZDateTime.from(when,tz.local),details,androidScheduleMode:AndroidScheduleMode.inexactAllowWhileIdle,payload:raw);}catch(__){}}}
  Future<void> scheduleTreatment(String patient,String raw) async {
   final p=raw.split('|');if(p.length!=4)return;final when=DateTime.tryParse(p[3]);if(when==null)return;
-  final base=raw.hashCode.abs()%10000000,now=DateTime.now();
+  final base=treatmentNotificationBase(raw),now=DateTime.now();
   const pre=NotificationDetails(android:AndroidNotificationDetails('careflow_pre','تنبيه قبل موعد العلاج',channelDescription:'تنبيه قبل الموعد بخمس دقائق',importance:Importance.high,priority:Priority.high,playSound:true));
   const due=NotificationDetails(android:AndroidNotificationDetails('careflow_due','مواعيد إعطاء العلاج',channelDescription:'تنبيهات صوتية متكررة لموعد العلاج',importance:Importance.max,priority:Priority.max,playSound:true,category:AndroidNotificationCategory.alarm));
   final before=when.subtract(const Duration(minutes:5));
-  if(before.isAfter(now))await notices.zonedSchedule(base,'موعد علاج قريب','بعد 5 دقائق: '+patient+' — '+p[0]+'، '+p[1]+'، '+p[2],tz.TZDateTime.from(before,tz.local),pre,androidScheduleMode:AndroidScheduleMode.exactAllowWhileIdle,payload:raw);
-  if(when.isAfter(now))await notices.zonedSchedule(base+1,'حان موعد إعطاء العلاج',patient+' — '+p[0]+'، الجرعة '+p[1]+'، طريقة الإعطاء '+p[2],tz.TZDateTime.from(when,tz.local),due,androidScheduleMode:AndroidScheduleMode.exactAllowWhileIdle,payload:raw);
-  for(var i=1;i<=30;i++){final at=when.add(Duration(minutes:2*i));if(at.isAfter(now))await notices.zonedSchedule(base+1+i,'تذكير: العلاج لم يُؤكّد بعد',patient+' — '+p[0]+'، '+p[1]+'، '+p[2]+'. افتح رِعاية وسجّل إعطاء العلاج.',tz.TZDateTime.from(at,tz.local),due,androidScheduleMode:AndroidScheduleMode.exactAllowWhileIdle,payload:raw);}
+  if(before.isAfter(now))await scheduleNotification(base,'موعد علاج قريب','بعد 5 دقائق: '+patient+' — '+p[0]+'، '+p[1]+'، '+p[2],before,pre,raw);
+  if(when.isAfter(now))await scheduleNotification(base+1,'حان موعد إعطاء العلاج',patient+' — '+p[0]+'، الجرعة '+p[1]+'، طريقة الإعطاء '+p[2],when,due,raw);
+  for(var i=1;i<=30;i++){final at=when.add(Duration(minutes:2*i));if(at.isAfter(now))await scheduleNotification(base+1+i,'تذكير: العلاج لم يُؤكّد بعد',patient+' — '+p[0]+'، '+p[1]+'، '+p[2]+'. افتح عناية وسجّل إعطاء العلاج.',at,due,raw);}
  }
- Future<void> confirmTreatment(String raw) async {final b=raw.hashCode.abs()%10000000;for(var i=0;i<=31;i++){await notices.cancel(b+i);}completedTreatments.add(raw);await saveTreatments();if(mounted)setState((){});}
+ Future<void> confirmTreatment(String raw) async {await cancelTreatmentNotifications(raw);completedTreatments.add(raw);await saveTreatments();if(mounted)setState((){});}
 
+ Future<void> confirmDeleteTreatment(String patient,String raw) async {final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('حذف العلاج'),content:const Text('هل تريد حذف هذا العلاج وإلغاء جميع تنبيهاته؟'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),style:FilledButton.styleFrom(backgroundColor:Colors.red),child:const Text('حذف'))]));if(ok!=true)return;await cancelTreatmentNotifications(raw);treatmentsByPatient[patient]?.remove(raw);completedTreatments.remove(raw);await saveTreatments();if(mounted)setState((){});}
+ Future<void> confirmDeletePatient(String patient) async {final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('حذف المريض'),content:Text('هل تريد حذف ملف المريض "$patient" مع علاجاته وصوره وسجلاته؟ لا يمكن التراجع عن هذا الإجراء.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),style:FilledButton.styleFrom(backgroundColor:Colors.red),child:const Text('حذف نهائياً'))]));if(ok!=true)return;final doses=treatmentsByPatient.remove(patient)??<String>[];for(final raw in doses){await cancelTreatmentNotifications(raw);completedTreatments.remove(raw);}patients.remove(patient);patientInfo.remove(patient);vitalSigns.remove(patient);nursingNotes.remove(patient);investigations.remove(patient);photosByPatient.remove(patient);await saveAllData();await savePatientPhotos();await saveTreatments();if(mounted)setState((){});}
  void addTreatment(String patient) async {
   final name=TextEditingController(),dose=TextEditingController();
   String route='IV';DateTime day=DateTime.now();TimeOfDay time=TimeOfDay.fromDateTime(DateTime.now().add(const Duration(minutes:10)));
