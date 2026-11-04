@@ -74,7 +74,7 @@ class _HomePageState extends State<HomePage> {
  Future<void> savePatientPhotos() async {final p=await SharedPreferences.getInstance();await p.setString('careflow_patient_photos',jsonEncode(photosByPatient));}
  Future<void> saveTreatments() async {final p=await SharedPreferences.getInstance();await p.setString('careflow_treatments',jsonEncode(treatmentsByPatient));await p.setStringList('careflow_completed_treatments',completedTreatments.toList());}
  @override Widget build(BuildContext context) {
-  final pages=[dashboard(),patientsPage(),listPage('الردهات والأقسام',wards,Icons.local_hospital_outlined,'إضافة ردهة'),treatmentsOverviewPage(),settingsPage()];
+  final pages=[dashboard(),patientsPage(),listPage('الردهات والأقسام',wards,Icons.local_hospital_outlined,'إضافة ردهة'),settingsPage()];
   return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
    appBar:AppBar(title:const Row(children:[Icon(Icons.health_and_safety,color:Color(0xff087e8b)),SizedBox(width:9),Text('عناية',style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:8),Text('ENAYA',style:TextStyle(fontSize:13))]),actions:[IconButton(onPressed:widget.onTheme,icon:const Icon(Icons.brightness_6_outlined))]),
    body:!initialized?const Center(child:CircularProgressIndicator()):SafeArea(child:pages[tab]),
@@ -82,7 +82,6 @@ class _HomePageState extends State<HomePage> {
     NavigationDestination(icon:Icon(Icons.dashboard_outlined),label:'الرئيسية'),
     NavigationDestination(icon:Icon(Icons.people_outline),label:'المرضى'),
     NavigationDestination(icon:Icon(Icons.apartment_outlined),label:'الردهات'),
-    NavigationDestination(icon:Icon(Icons.medication_outlined),label:'جدول العلاجات'),
     NavigationDestination(icon:Icon(Icons.settings_outlined),label:'الإعدادات')])));
  }
  Widget dashboard()=>ListView(padding:const EdgeInsets.all(16),children:[
@@ -93,7 +92,7 @@ class _HomePageState extends State<HomePage> {
   const SizedBox(height:18),
   GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:2,crossAxisSpacing:12,mainAxisSpacing:12,childAspectRatio:1.45,children:[
    statCard('المرضى',patients.length.toString(),Icons.people_alt_outlined,onTap:()=>setState(()=>tab=1)),statCard('الردهات',wards.length.toString(),Icons.apartment,onTap:()=>setState(()=>tab=2)),
-   statCard('العلاجات المسجلة',treatmentsByPatient.values.fold<int>(0,(sum,list)=>sum+list.length).toString(),Icons.medication_outlined,onTap:()=>setState(()=>tab=3)),statCard('التنبيهات',treatmentsByPatient.values.fold<int>(0,(sum,list)=>sum+list.length).toString(),Icons.notifications_active_outlined,onTap:()=>setState(()=>tab=3))]),
+   statCard('العلاجات المسجلة',treatmentsByPatient.values.fold<int>(0,(sum,list)=>sum+list.length).toString(),Icons.medication_outlined,onTap:()=>setState(()=>tab=1)),statCard('التنبيهات',treatmentsByPatient.values.fold<int>(0,(sum,list)=>sum+list.length).toString(),Icons.notifications_active_outlined,onTap:()=>setState(()=>tab=1))]),
   const SizedBox(height:18),const Text('آخر المرضى',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
   ...patients.map((p)=>Card(child:ListTile(onTap:()=>openPatientProfile(p),leading:const CircleAvatar(child:Icon(Icons.person_outline)),title:Text(p),subtitle:const Text('اضغط لفتح ملف المريض'),trailing:const Icon(Icons.chevron_left))))]);
  Widget patientsPage()=>ListView(padding:const EdgeInsets.all(16),children:[
@@ -101,29 +100,13 @@ class _HomePageState extends State<HomePage> {
    const Text('المرضى',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),
    FilledButton.icon(onPressed:()=>addItem('المرضى',patients),icon:const Icon(Icons.add),label:const Text('إضافة مريض'))]),
   const SizedBox(height:12),
-  ...patients.map((patient)=>Card(
-   child:ExpansionTile(
-    leading:const CircleAvatar(child:Icon(Icons.person_outline)),
-    title:Text(patient),
-    subtitle:Text('${(treatmentsByPatient[patient]??[]).length} علاج مسجل'),
-    children:[
-     if((treatmentsByPatient[patient]??[]).isEmpty)
-      const Padding(padding:EdgeInsets.all(12),child:Text('لا توجد علاجات مضافة لهذا المريض')),
-     ...(treatmentsByPatient[patient]??[]).map((t)=>ListTile(
-      leading:const Icon(Icons.medication_outlined,color:Color(0xff087e8b)),
-      title:Text(t.split('|').first),
-      subtitle:t.split('|').length==4?Text('الجرعة: '+t.split('|')[1]+' • '+t.split('|')[2]+' • '+DateTime.parse(t.split('|')[3]).toLocal().toString()+' • '+(completedTreatments.contains(t)?'تم التأكيد':'بانتظار التأكيد')):null,
-      trailing:t.split('|').length==4&&!completedTreatments.contains(t)?TextButton(onPressed:()=>confirmTreatment(t),child:const Text('تم إعطاء العلاج')):null,dense:true)),
-     Padding(padding:const EdgeInsets.fromLTRB(16,4,16,4),child:Wrap(
-      spacing:8,runSpacing:8,alignment:WrapAlignment.center,children:[
-       OutlinedButton.icon(
-        onPressed:()=>addTreatment(patient),
-        icon:const Icon(Icons.add),label:const Text('إضافة علاج')),
-       FilledButton.tonalIcon(
-        onPressed:()=>openPatientProfile(patient),
-        icon:const Icon(Icons.folder_open_outlined),label:const Text('ملف المريض'))
-      ]))
-    ]))),
+  ...patients.map((patient)=>Card(child:ListTile(
+   onTap:()=>openPatientProfile(patient),
+   leading:const CircleAvatar(child:Icon(Icons.person_outline)),
+   title:Text(patient),
+   subtitle:Text('اضغط لفتح الملف • ${(treatmentsByPatient[patient]??[]).length} علاج مسجل'),
+   trailing:const Icon(Icons.chevron_left)
+  )))
  ]);
  void openPatientProfile(String patient){
   showDialog(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
