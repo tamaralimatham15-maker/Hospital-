@@ -74,7 +74,7 @@ class _HomePageState extends State<HomePage> {
  Future<void> savePatientPhotos() async {final p=await SharedPreferences.getInstance();await p.setString('careflow_patient_photos',jsonEncode(photosByPatient));}
  Future<void> saveTreatments() async {final p=await SharedPreferences.getInstance();await p.setString('careflow_treatments',jsonEncode(treatmentsByPatient));await p.setStringList('careflow_completed_treatments',completedTreatments.toList());}
  @override Widget build(BuildContext context) {
-  final pages=[dashboard(),patientsPage(),listPage('الردهات والأقسام',wards,Icons.local_hospital_outlined,'إضافة ردهة'),settingsPage()];
+  final pages=[dashboard(),patientsPage(),listPage('الردهات والأقسام',wards,Icons.local_hospital_outlined,'إضافة ردهة'),treatmentsOverviewPage(),settingsPage()];
   return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
    appBar:AppBar(title:const Row(children:[Icon(Icons.health_and_safety,color:Color(0xff087e8b)),SizedBox(width:9),Text('عناية',style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:8),Text('ENAYA',style:TextStyle(fontSize:13))]),actions:[IconButton(onPressed:widget.onTheme,icon:const Icon(Icons.brightness_6_outlined))]),
    body:!initialized?const Center(child:CircularProgressIndicator()):SafeArea(child:pages[tab]),
@@ -82,6 +82,7 @@ class _HomePageState extends State<HomePage> {
     NavigationDestination(icon:Icon(Icons.dashboard_outlined),label:'الرئيسية'),
     NavigationDestination(icon:Icon(Icons.people_outline),label:'المرضى'),
     NavigationDestination(icon:Icon(Icons.apartment_outlined),label:'الردهات'),
+    NavigationDestination(icon:Icon(Icons.medication_outlined),label:'جدول العلاجات'),
     NavigationDestination(icon:Icon(Icons.settings_outlined),label:'الإعدادات')])));
  }
  Widget dashboard()=>ListView(padding:const EdgeInsets.all(16),children:[
@@ -92,7 +93,7 @@ class _HomePageState extends State<HomePage> {
   const SizedBox(height:18),
   GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:2,crossAxisSpacing:12,mainAxisSpacing:12,childAspectRatio:1.45,children:[
    statCard('المرضى',patients.length.toString(),Icons.people_alt_outlined,onTap:()=>setState(()=>tab=1)),statCard('الردهات',wards.length.toString(),Icons.apartment,onTap:()=>setState(()=>tab=2)),
-   statCard('العلاجات المسجلة',treatmentsByPatient.values.fold<int>(0,(sum,list)=>sum+list.length).toString(),Icons.medication_outlined,onTap:showTreatmentsOverview),statCard('التنبيهات',treatmentsByPatient.values.fold<int>(0,(sum,list)=>sum+list.length).toString(),Icons.notifications_active_outlined,onTap:showTreatmentsOverview)]),
+   statCard('العلاجات المسجلة',treatmentsByPatient.values.fold<int>(0,(sum,list)=>sum+list.length).toString(),Icons.medication_outlined,onTap:()=>setState(()=>tab=3)),statCard('التنبيهات',treatmentsByPatient.values.fold<int>(0,(sum,list)=>sum+list.length).toString(),Icons.notifications_active_outlined,onTap:()=>setState(()=>tab=3))]),
   const SizedBox(height:18),const Text('آخر المرضى',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
   ...patients.map((p)=>Card(child:ListTile(onTap:()=>openPatientProfile(p),leading:const CircleAvatar(child:Icon(Icons.person_outline)),title:Text(p),subtitle:const Text('اضغط لفتح ملف المريض'),trailing:const Icon(Icons.chevron_left))))]);
  Widget patientsPage()=>ListView(padding:const EdgeInsets.all(16),children:[
@@ -137,6 +138,7 @@ class _HomePageState extends State<HomePage> {
       nursingNotes.putIfAbsent(patient,()=>[]),[],false),
      profileSection(ctx,refresh,patient,'الفحوصات والتحاليل',Icons.biotech_outlined,
       investigations.putIfAbsent(patient,()=>[]),[],false),
+     patientTreatmentsSection(ctx,refresh,patient),
      patientPhotoAlbum(ctx,refresh,patient),
     ]))),
    actions:[TextButton(onPressed:()=>changePatientWard(patient,ctx),child:const Text('نقل إلى ردهة')),TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إغلاق'))]
@@ -227,6 +229,75 @@ class _HomePageState extends State<HomePage> {
    ]));
  }
 
+ Widget patientTreatmentsSection(BuildContext ctx,StateSetter refresh,String patient){
+  final list=treatmentsByPatient.putIfAbsent(patient,()=>[]);
+  return Card(child:ExpansionTile(
+   initiallyExpanded:true,
+   leading:const Icon(Icons.medication_outlined,color:Color(0xff087e8b)),
+   title:const Text('العلاجات الخاصة بالمريض',style:TextStyle(fontWeight:FontWeight.bold)),
+   subtitle:Text('${list.length} علاج مسجل'),
+   children:[
+    if(list.isEmpty)const Padding(padding:EdgeInsets.all(12),child:Text('لا توجد علاجات مضافة لهذا المريض')),
+    ...list.map((raw)=>treatmentTile(patient,raw,compact:false)),
+    Padding(padding:const EdgeInsets.all(12),child:Align(alignment:Alignment.centerRight,child:FilledButton.icon(
+     onPressed:()=>addTreatment(patient),icon:const Icon(Icons.add),label:const Text('إضافة علاج'))))
+   ]));
+ }
+ String treatmentTimeLabel(String raw){
+  final parts=raw.split('|');if(parts.length!=4)return 'وقت غير محدد';
+  final when=DateTime.tryParse(parts[3]);if(when==null)return 'وقت غير محدد';
+  final hour=when.hour%12==0?12:when.hour%12;
+  final minute=when.minute.toString().padLeft(2,'0');
+  return '${hour.toString().padLeft(2,'0')}:$minute ${when.hour<12?'AM':'PM'}';
+ }
+ Widget treatmentTile(String patient,String raw,{bool compact=true}){
+  final parts=raw.split('|');
+  final name=parts.isNotEmpty?parts[0]:'علاج';
+  final dose=parts.length>1?parts[1]:'—';
+  final route=parts.length>2?parts[2]:'—';
+  final isDone=completedTreatments.contains(raw);
+  return Card(margin:const EdgeInsets.symmetric(horizontal:10,vertical:5),child:Padding(
+   padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+    Text(name,style:const TextStyle(fontSize:compact?16:18,fontWeight:FontWeight.bold)),
+    const SizedBox(height:6),
+    Wrap(spacing:14,runSpacing:8,children:[
+     Text('الجرعة: $dose',style:const TextStyle(fontSize:15)),
+     Text('طريقة الإعطاء: $route',style:const TextStyle(fontSize:15))
+    ]),
+    const SizedBox(height:8),
+    Row(children:[
+     const Icon(Icons.access_time,color:Color(0xff087e8b),size:22),
+     const SizedBox(width:7),
+     Text(treatmentTimeLabel(raw),style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold,letterSpacing:0.4)),
+     const Spacer(),
+     Text(isDone?'تم إعطاء العلاج':'بانتظار التأكيد',style:TextStyle(fontSize:12,color:isDone?Colors.green:Colors.orange,fontWeight:FontWeight.bold))
+    ]),
+    if(parts.length==4&&DateTime.tryParse(parts[3])!=null)
+     Text('التاريخ: ${DateTime.parse(parts[3]).toLocal().toString().substring(0,10)}',style:const TextStyle(fontSize:13,color:Colors.grey)),
+    if(!isDone)Align(alignment:Alignment.centerLeft,child:TextButton.icon(
+     onPressed:()=>confirmTreatment(raw),icon:const Icon(Icons.check_circle_outline),label:const Text('تم إعطاء العلاج')))
+   ])));
+ }
+ Widget treatmentsOverviewPage()=>ListView(padding:const EdgeInsets.all(16),children:[
+  const Text('جدول العلاجات',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),
+  const SizedBox(height:6),
+  const Text('جميع المرضى وعلاجاتهم والجرعات ومواعيد الإعطاء بنظام 12 ساعة'),
+  const SizedBox(height:12),
+  if(treatmentsByPatient.values.every((items)=>items.isEmpty))
+   const Card(child:Padding(padding:EdgeInsets.all(20),child:Text('لا توجد علاجات مسجلة حالياً'))),
+  ...patients.map((patient){
+   final list=treatmentsByPatient[patient]??<String>[];
+   return Card(child:ExpansionTile(
+    initiallyExpanded:true,
+    leading:const CircleAvatar(child:Icon(Icons.person_outline)),
+    title:Text(patient,style:const TextStyle(fontWeight:FontWeight.bold)),
+    subtitle:Text('${list.length} علاج'),
+    children:list.isEmpty
+     ?[const Padding(padding:EdgeInsets.all(12),child:Text('لا توجد علاجات لهذا المريض'))]
+     :list.map((raw)=>treatmentTile(patient,raw,compact:false)).toList()
+   ));
+  })
+ ]);
  Widget patientPhotoAlbum(BuildContext ctx,StateSetter refresh,String patient){
   final list=photosByPatient.putIfAbsent(patient,()=>[]);
   return Card(child:ExpansionTile(leading:const Icon(Icons.photo_library_outlined),title:const Text('ألبوم صور التحاليل والفحوصات'),subtitle:Text(list.length.toString()+' صورة'),children:[
