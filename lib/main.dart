@@ -258,7 +258,7 @@ class _HomePageState extends State<HomePage> {
   final isDone=completedTreatments.contains(raw);
   return Card(margin:const EdgeInsets.symmetric(horizontal:10,vertical:5),child:Padding(
    padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-    Text(name,style:const TextStyle(fontSize:compact?16:18,fontWeight:FontWeight.bold)),
+    Text(name,style:TextStyle(fontSize:compact?16:18,fontWeight:FontWeight.bold)),
     const SizedBox(height:6),
     Wrap(spacing:14,runSpacing:8,children:[
      Text('الجرعة: $dose',style:const TextStyle(fontSize:15)),
