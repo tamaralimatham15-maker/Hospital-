@@ -242,7 +242,7 @@ class _HomePageState extends State<HomePage> {
    subtitle:Text('${list.length} علاج مسجل'),
    children:[
     if(list.isEmpty)const Padding(padding:EdgeInsets.all(12),child:Text('لا توجد علاجات مضافة لهذا المريض')),
-    ...list.map((raw)=>treatmentTile(patient,raw,compact:false)),
+    ...list.map((raw)=>treatmentTile(patient,raw,compact:false,refresh:refresh)),
     Padding(padding:const EdgeInsets.all(12),child:Align(alignment:Alignment.centerRight,child:FilledButton.icon(
      onPressed:()=>addTreatment(patient),icon:const Icon(Icons.add),label:const Text('إضافة علاج'))))
    ]));
@@ -254,7 +254,7 @@ class _HomePageState extends State<HomePage> {
   final minute=when.minute.toString().padLeft(2,'0');
   return '${hour.toString().padLeft(2,'0')}:$minute ${when.hour<12?'AM':'PM'}';
  }
- Widget treatmentTile(String patient,String raw,{bool compact=true}){
+ Widget treatmentTile(String patient,String raw,{bool compact=true,StateSetter? refresh}){
   final parts=raw.split('|');
   final name=parts.isNotEmpty?parts[0]:'علاج';
   final dose=parts.length>1?parts[1]:'—';
@@ -278,7 +278,7 @@ class _HomePageState extends State<HomePage> {
     ]),
     if(parts.length==4&&DateTime.tryParse(parts[3])!=null)
      Text('التاريخ: ${DateTime.parse(parts[3]).toLocal().toString().substring(0,10)}',style:const TextStyle(fontSize:13,color:Colors.grey)),
-    Wrap(alignment:WrapAlignment.spaceBetween,children:[if(!isDone)TextButton.icon(onPressed:()=>confirmTreatment(raw),icon:const Icon(Icons.check_circle_outline),label:const Text('تم إعطاء العلاج')),TextButton.icon(onPressed:()=>confirmDeleteTreatment(patient,raw),icon:const Icon(Icons.delete_outline,color:Colors.red),label:const Text('حذف العلاج'))])
+    Wrap(alignment:WrapAlignment.spaceBetween,children:[if(!isDone)TextButton.icon(onPressed:()=>confirmTreatment(raw,refresh),icon:const Icon(Icons.check_circle_outline),label:const Text('تم إعطاء العلاج')),TextButton.icon(onPressed:()=>confirmDeleteTreatment(patient,raw,refresh),icon:const Icon(Icons.delete_outline,color:Colors.red),label:const Text('حذف العلاج'))])
    ])));
  }
  Widget treatmentsOverviewPage()=>ListView(padding:const EdgeInsets.all(16),children:[
@@ -333,9 +333,9 @@ class _HomePageState extends State<HomePage> {
   if(when.isAfter(now))await scheduleNotification(base+1,'حان موعد إعطاء العلاج',patient+' — '+p[0]+'، الجرعة '+p[1]+'، طريقة الإعطاء '+p[2],when,due,raw);
   for(var i=1;i<=30;i++){final at=when.add(Duration(minutes:2*i));if(at.isAfter(now))await scheduleNotification(base+1+i,'تذكير: العلاج لم يُؤكّد بعد',patient+' — '+p[0]+'، '+p[1]+'، '+p[2]+'. افتح عناية وسجّل إعطاء العلاج.',at,due,raw);}
  }
- Future<void> confirmTreatment(String raw) async {await cancelTreatmentNotifications(raw);completedTreatments.add(raw);await saveTreatments();if(mounted)setState((){});}
+ Future<void> confirmTreatment(String raw,[StateSetter? refresh]) async {await cancelTreatmentNotifications(raw);completedTreatments.add(raw);await saveTreatments();if(mounted)setState((){});refresh?.call((){});}
 
- Future<void> confirmDeleteTreatment(String patient,String raw) async {final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('حذف العلاج'),content:const Text('هل تريد حذف هذا العلاج وإلغاء جميع تنبيهاته؟'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),style:FilledButton.styleFrom(backgroundColor:Colors.red),child:const Text('حذف'))]));if(ok!=true)return;await cancelTreatmentNotifications(raw);treatmentsByPatient[patient]?.remove(raw);completedTreatments.remove(raw);await saveTreatments();if(mounted)setState((){});}
+ Future<void> confirmDeleteTreatment(String patient,String raw,[StateSetter? refresh]) async {final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('حذف العلاج'),content:const Text('هل تريد حذف هذا العلاج وإلغاء جميع تنبيهاته؟'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),style:FilledButton.styleFrom(backgroundColor:Colors.red),child:const Text('حذف'))]));if(ok!=true)return;await cancelTreatmentNotifications(raw);treatmentsByPatient[patient]?.remove(raw);completedTreatments.remove(raw);await saveTreatments();if(mounted)setState((){});refresh?.call((){});}
  Future<void> confirmDeletePatient(String patient) async {final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('حذف المريض'),content:Text('هل تريد حذف ملف المريض "$patient" مع علاجاته وصوره وسجلاته؟ لا يمكن التراجع عن هذا الإجراء.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),style:FilledButton.styleFrom(backgroundColor:Colors.red),child:const Text('حذف نهائياً'))]));if(ok!=true)return;final doses=treatmentsByPatient.remove(patient)??<String>[];for(final raw in doses){await cancelTreatmentNotifications(raw);completedTreatments.remove(raw);}patients.remove(patient);patientInfo.remove(patient);vitalSigns.remove(patient);nursingNotes.remove(patient);investigations.remove(patient);photosByPatient.remove(patient);await saveAllData();await savePatientPhotos();await saveTreatments();if(mounted)setState((){});}
  void addTreatment(String patient) async {
   final name=TextEditingController(),dose=TextEditingController();
