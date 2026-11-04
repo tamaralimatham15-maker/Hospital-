@@ -372,7 +372,7 @@ class _HomePageState extends State<HomePage> {
     Text('نظام إدارة المستشفيات والرعاية التمريضية',textAlign:TextAlign.center),
     Divider(height:24),
     ListTile(contentPadding:EdgeInsets.zero,title:Text('المطوّر'),subtitle:Text('الممرض تمار ميثم كمال الدين الحسيني'),leading:Icon(Icons.person_outline)),
-    ListTile(contentPadding:EdgeInsets.zero,title:Text('الإصدار'),subtitle:Text('0.3.0 • نسخة تجريبية'),leading:Icon(Icons.info_outline)),
+    ListTile(contentPadding:EdgeInsets.zero,title:Text('الإصدار'),subtitle:Text('0.3.1 • نسخة تجريبية'),leading:Icon(Icons.info_outline)),
     ListTile(contentPadding:EdgeInsets.zero,title:Text('الهدف'),subtitle:Text('تنظيم المرضى والردهات والعلاجات والملفات، وتسهيل العمل التمريضي داخل المؤسسات الصحية.'),leading:Icon(Icons.flag_outlined)),
     Text('مساحة صورة المطوّر — تضاف لاحقاً',style:TextStyle(fontSize:12,color:Colors.grey))
    ]))),
@@ -426,6 +426,6 @@ class _HomePageState extends State<HomePage> {
   const Card(child:ListTile(leading:Icon(Icons.business_outlined),title:Text('المؤسسة الصحية'),subtitle:Text('مؤسسة تجريبية'))),
   const Card(child:ListTile(leading:Icon(Icons.admin_panel_settings_outlined),title:Text('إدارة الصلاحيات'),subtitle:Text('ستتوفر عند ربط الخادم'))),
   const Card(child:ListTile(leading:Icon(Icons.cloud_outlined),title:Text('قاعدة البيانات'),subtitle:Text('غير متصلة — البيانات محلية مؤقتة'))),
-  Card(child:ListTile(onTap:showAbout,leading:const Icon(Icons.info_outline),title:const Text('حول التطبيق'),subtitle:const Text('عناية ENAYA • الإصدار 0.3.0'))),
+  Card(child:ListTile(onTap:showAbout,leading:const Icon(Icons.info_outline),title:const Text('حول التطبيق'),subtitle:const Text('عناية ENAYA • الإصدار 0.3.1'))),
   const Padding(padding:EdgeInsets.all(12),child:Text('تنبيه: هذه نسخة واجهة تجريبية فقط. لا تستخدمها لتسجيل بيانات مرضى حقيقية أو لاتخاذ قرارات علاجية.',style:TextStyle(color:Colors.orange)))]);
 }
