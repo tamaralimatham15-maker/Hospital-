@@ -49,7 +49,10 @@ jobs:
           '''
           if "android.permission.POST_NOTIFICATIONS" not in s:
               s = s.replace(marker, permissions + marker, 1)
-              p.write_text(s)
+          receivers = '''\n              <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />\n              <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">\n                  <intent-filter>\n                      <action android:name="android.intent.action.BOOT_COMPLETED" />\n                      <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />\n                      <action android:name="android.intent.action.QUICKBOOT_POWERON" />\n                      <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />\n                  </intent-filter>\n              </receiver>\n          '''
+          if "ScheduledNotificationBootReceiver" not in s:
+              s = s.replace("    </application>", receivers + "    </application>", 1)
+          p.write_text(s)
           PY
       - name: Set ENAYA Android app label
         run: |
